@@ -6,11 +6,19 @@
 from bs4 import BeautifulSoup
 import requests
 import json
-import secrets # file that contains your API key
+import secrets as pysecrets # file that contains your API key
 
+# National Parks base url
 BASE_URL = 'https://www.nps.gov'
+
+# Map Quest Radius Search base url
+MAPQ_URL = 'http://www.mapquestapi.com/search/v2/radius'
+
 CACHE_FILENAME = "nationalparks.json"
 CACHE_DICT = {}
+
+client_key = pysecrets.MAPQ_API_KEY
+
 
 def open_cache():
     ''' Opens the cache file if it exists and loads the JSON into
@@ -51,7 +59,6 @@ def save_cache(cache_dict):
     fw = open(CACHE_FILENAME,"w")
     fw.write(dumped_json_cache)
     fw.close()
-
 
 class NationalSite:
     '''a national site
@@ -104,12 +111,12 @@ def build_state_url_dict():
     '''
     state_url_dict = {}
 
+    # Use Caching when applicable to save time & requests
     if BASE_URL in CACHE_DICT.keys():
         print("Using cache")
         response = CACHE_DICT[BASE_URL]
         soup = BeautifulSoup(response, 'html.parser')
     else:
-        # Request from baseurl and use bs4 to parse html
         print("Fetching")
         response = requests.get(BASE_URL)
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -142,12 +149,12 @@ def get_site_instance(site_url):
         a national site instance
     '''
 
+    # Use Caching when applicable to save time & requests
     if site_url in CACHE_DICT.keys():
         print("Using cache")
         response = CACHE_DICT[site_url]
         soup = BeautifulSoup(response, 'html.parser')
     else:
-        # Get soup from national site url
         print("Fetching")
         response = requests.get(site_url)
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -157,22 +164,36 @@ def get_site_instance(site_url):
     # Find Name and Category using a parent class to narrow scope
     name_cat_parent = soup.find('div', class_='Hero-titleContainer clearfix')
 
-    if len(name_cat_parent.find('a').contents) > 0:
-        name = name_cat_parent.find('a').contents[0]
+    # If attribute is not available for a site, create placeholder str
+    if name_cat_parent is not None:
+        if len(name_cat_parent.find('a').contents) > 0:
+            name = name_cat_parent.find('a').contents[0]
+        else:
+            name = "No Name"
     else:
-        name = "No Name"
+            name = "No Name"
 
-    category_parent = name_cat_parent.find('div', class_='Hero-designationContainer')
-
-    if len(category_parent.find('span', class_='Hero-designation').contents) > 0:
-        category = category_parent.find('span', class_='Hero-designation').contents[0]
+    # Narrow scope further to obtain category parent div 
+    if name_cat_parent is not None and name_cat_parent.find('div', class_='Hero-designationContainer') is not None:
+        category_parent = name_cat_parent.find('div', class_='Hero-designationContainer')
     else:
-        category = "No Category"
+        category_parent = name_cat_parent
+
+    # If attribute is not available for a site, create placeholder str
+    if category_parent is not None and category_parent.find('span', class_='Hero-designation') is not None:
+        if len(category_parent.find('span', class_='Hero-designation').contents) > 0:
+            category = category_parent.find('span', class_='Hero-designation').contents[0]
+        else:
+            category = "No Category"
+    else:
+            category = "No Category"
 
 
     # Find contact & location information using a parent class to narrow scope
     contact_parent = soup.find('div', class_='vcard')
-    if contact_parent.find('span', itemprop='addressLocality') is not None:
+
+    # If attribute is not available for a site, create placeholder str
+    if contact_parent is not None and contact_parent.find('span', itemprop='addressLocality') is not None:
         if len(contact_parent.find('span', itemprop='addressLocality').contents) > 0:
             city = contact_parent.find('span', itemprop='addressLocality').contents[0]
         else:
@@ -180,16 +201,19 @@ def get_site_instance(site_url):
     else:
         city = "No City"
 
-    if contact_parent.find('span', class_='region') is not None:
+    # If attribute is not available for a site, create placeholder str
+    if contact_parent is not None and contact_parent.find('span', class_='region') is not None:
         if len(contact_parent.find('span', class_='region').contents) > 0:
             region = contact_parent.find('span', class_='region').contents[0]
         else:
             region = "No Region"
     else:
         region = "No Region"
+
     address = city + ', ' + region
 
-    if contact_parent.find('span', class_='postal-code') is not None:
+    # If attribute is not available for a site, create placeholder str
+    if contact_parent is not None and contact_parent.find('span', class_='postal-code') is not None:
         if len(contact_parent.find('span', class_='postal-code').contents) > 0:
             zipcode = contact_parent.find('span', class_='postal-code').contents[0]
         else:
@@ -197,7 +221,8 @@ def get_site_instance(site_url):
     else:
         zipcode = "No Zipcode"
 
-    if contact_parent.find('span', class_='tel') is not None:
+    # If attribute is not available for a site, create placeholder str
+    if contact_parent is not None and contact_parent.find('span', class_='tel') is not None:
         if len(contact_parent.find('span', class_='tel').contents) > 0:
             telephone = contact_parent.find('span', class_='tel').contents[0]
         else:
@@ -224,6 +249,8 @@ def get_sites_for_state(state_url):
     url_list = []
     national_site_objs = []
 
+
+    # Use caching to save time & requests
     if state_url in CACHE_DICT.keys():
         print("Using cache")
         response = CACHE_DICT[state_url]
@@ -234,18 +261,17 @@ def get_sites_for_state(state_url):
         soup = BeautifulSoup(response.text, 'html.parser')
         CACHE_DICT[state_url] = response.text
         save_cache(CACHE_DICT)
-    # print(CACHE_DICT)
 
-    # Find results list of links using parent class to narrow scope
+    # Find results <li> of links using parent class to narrow scope
     park_results = soup.find('div', id='parkListResultsArea')
     park_list_urls = park_results.find_all('li', class_='clearfix')
 
-    # Obtain list of urls for each national site in given state
+    # Obtain python list of urls for each national site in given state
     for list_item in park_list_urls:
         path = list_item.find('a')['href']
         url_list.append(BASE_URL + path)
 
-    # iterate through site urls, call get_site_instance(), and return list of each object
+    # Create instance for each national site url in our list
     for url in url_list:
         site_obj = get_site_instance(url)
         national_site_objs.append(site_obj)
@@ -265,16 +291,68 @@ def get_nearby_places(site_object):
     dict
         a converted API return from MapQuest API
     '''
-    pass
+    params = {'radius': '10',
+              'units': 'm',
+              'maxMatches': '10',
+              'ambiguities': 'ignore',
+              'outFormat': 'json',
+              'key': client_key,
+              'origin': site_object.zipcode}
+    
+    # Caching
+    if site_object.zipcode in CACHE_DICT.keys():
+        print("Using cache")
+        results = CACHE_DICT[site_object.zipcode]
+    else:
+        print("Fetching")
+        response = requests.get(MAPQ_URL, params)
+        results = response.json()
+        CACHE_DICT[site_object.zipcode] = results
+        save_cache(CACHE_DICT)
+
+    return results
+
+def format_nearby_places(json_results):
+    '''Parse MapQuest API results and print nearby places.
+    
+    Parameters
+    ----------
+    json_results: dict
+        dictionary containing response from MapQuest API
+    '''
+    # verify that this key is valid
+    if 'searchResults' in json_results.keys():
+        list_dict_nearby = json_results['searchResults']
+    else:
+        return "No valid results."
+
+    # Iterate through list of dictionaries containing nearby places & get fields
+    for i in range(len(list_dict_nearby)):
+        name = list_dict_nearby[i]['name']
+        category = list_dict_nearby[i]['fields']['group_sic_code_name']
+        address = list_dict_nearby[i]['fields']['address']
+        city = list_dict_nearby[i]['fields']['city']
+
+        # Replace blank fields with str statements
+        if name == '':
+            name = 'No Name'
+        if category == '':
+            category = 'No Category'
+        if address == '':
+            address = 'No Address'
+        if city == '':
+            city = 'No City'
+
+        # Print each place in a nice format
+        print(f"- {name} ({category}): {address}, {city}")
     
 
 if __name__ == "__main__":
-    # print(build_state_url_dict())
-    # get_site_instance('https://www.nps.gov/yell/index.htm')
 
     CACHE_DICT = open_cache()
     state_url_dict = build_state_url_dict()
 
+    # Ask for user input and make it lowercase for the dictionary
     state_name = input(f"Please input a state name (e.g. Michigan, michigan) or 'exit': ")
     state_name = state_name.lower()
 
@@ -284,24 +362,28 @@ if __name__ == "__main__":
         if state_name in state_url_dict.keys():
             # use dictionary to get url
             state_url = state_url_dict[state_name]
+            # Get object instances for state parks
+            nat_sites = get_sites_for_state(state_url)
+
+            # Print header text to display list of national parks
+            print("----------------------------------------")
+            print(f"List of national sites in {state_name.title()}")
+            print("----------------------------------------")
+
+            # Iterate using counting and .info() method to print formatted results
+            count = 1
+            for i in range(len(nat_sites)):
+                        print(f"[{count}] {nat_sites[i].info()}")
+                        count += 1
             break
         elif state_name == 'exit':
             print("\nBye!")
             break
+        # For any 'invalid' input or state not on the website, reprompt user
         else:
-            print("\nInvalid input - state not found. Please try again.")
+            print("\n[Error] Enter proper state name")
             state_name = input(f"Please input a state name (e.g. Michigan, michigan) or 'exit': ")
 
-    # Get object instances for state parks
-    nat_sites = get_sites_for_state(state_url)
 
-    # Print header text to display list of national parks
-    print("------------------------------------------")
-    print(f"List of national sites in {state_name.title()}")
-    print("------------------------------------------")
-
-    # Iterate using counting and .info() method to print formatted results
-    count = 1
-    for i in range(len(nat_sites)):
-                print(f"[{count}] {nat_sites[i].info()}")
-                count += 1
+    # api_results = get_nearby_places(nat_sites[0])
+    # format_nearby_places(api_results)
