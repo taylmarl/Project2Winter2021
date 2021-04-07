@@ -83,7 +83,9 @@ class NationalSite:
     '''
     
     def __init__(self, category, name, address, zipcode, phone):
-        #ADD DOCSTRING
+        '''
+        Initalize instance of National Site according to class spec.
+        '''
         self.category = category
         self.name = name
         self.address = address
@@ -91,7 +93,9 @@ class NationalSite:
         self.phone = phone
     
     def info(self):
-        #ADD DOCSTRING
+        '''
+        Return nicely formatted information about National Site object.
+        '''
         return f"{self.name} ({self.category}): {self.address} {self.zipcode}"
 
 
@@ -356,33 +360,67 @@ if __name__ == "__main__":
     state_name = input(f"Please input a state name (e.g. Michigan, michigan) or 'exit': ")
     state_name = state_name.lower()
 
+    # Use indicator variable to indicate when to 
+    # have user enter search term & how to use 'back' feature
+    indicator = True
 
-    # Was that a valid input? This would check.
     while True:
-        if state_name in state_url_dict.keys():
-            # use dictionary to get url
-            state_url = state_url_dict[state_name]
-            # Get object instances for state parks
-            nat_sites = get_sites_for_state(state_url)
-
-            # Print header text to display list of national parks
-            print("----------------------------------------")
-            print(f"List of national sites in {state_name.title()}")
-            print("----------------------------------------")
-
-            # Iterate using counting and .info() method to print formatted results
-            count = 1
-            for i in range(len(nat_sites)):
-                        print(f"[{count}] {nat_sites[i].info()}")
-                        count += 1
-            break
-        elif state_name == 'exit':
+        if state_name == 'exit':
             print("\nBye!")
             break
-        # For any 'invalid' input or state not on the website, reprompt user
+
+        # Was the user input valid? This would check.
+        elif state_name in state_url_dict.keys():
+            if indicator:
+                # use dictionary to get url
+                state_url = state_url_dict[state_name]
+                # Get object instances for state parks
+                nat_sites = get_sites_for_state(state_url)
+
+                # Print header text to display list of national parks
+                print("----------------------------------------")
+                print(f"List of national sites in {state_name.title()}")
+                print("----------------------------------------")
+
+                # Iterate using counting and .info() method to print formatted results
+                count = 1
+                for i in range(len(nat_sites)):
+                            print(f"[{count}] {nat_sites[i].info()}")
+                            count += 1
+
+            # Change status of indicator so this code
+            # does not run after successful search,
+            # unless user enters 'back' (further down in code)
+            indicator = False
+
+            while True:
+                detail_num = input(f"\nChoose a number in the list for more details, or type 'exit' or 'back': ")
+                if detail_num.isnumeric() and int(detail_num) > 0 and int(detail_num) < count:
+                    # Print header text to display list of national parks
+                    print("----------------------------------------")
+                    print(f"Places near {nat_sites[int(detail_num) - 1].name}")
+                    print("----------------------------------------")
+                    data = get_nearby_places(nat_sites[int(detail_num) - 1])
+                    format_nearby_places(data)
+
+                elif detail_num == 'back':
+                    state_name = input(f"\nPlease input a state name (e.g. Michigan, michigan) or 'exit': ")
+                    state_name = state_name.lower()
+                    indicator = True
+                    break
+
+                elif detail_num == 'exit':
+                    state_name = 'exit'
+                    break
+
+                # For any 'invalid' input or state not on the website, reprompt user
+                else:
+                    print("\n[Error] Invalid input")
+
         else:
-            print("\n[Error] Enter proper state name")
-            state_name = input(f"Please input a state name (e.g. Michigan, michigan) or 'exit': ")
+                print("\n[Error] Enter proper state name")
+                state_name = input(f"\nPlease input a state name (e.g. Michigan, michigan) or 'exit': ")
+                state_name = state_name.lower()
 
 
     # api_results = get_nearby_places(nat_sites[0])
