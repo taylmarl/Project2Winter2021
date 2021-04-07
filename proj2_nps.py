@@ -421,7 +421,3 @@ if __name__ == "__main__":
             print("\n[Error] Enter proper state name")
             state_name = input(f"\nPlease input a state name (e.g. Michigan, michigan) or 'exit': ")
             state_name = state_name.lower()
-
-
-    # api_results = get_nearby_places(nat_sites[0])
-    # format_nearby_places(api_results)
